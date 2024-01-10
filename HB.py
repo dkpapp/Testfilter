@@ -114,7 +114,7 @@ async def start(client, message):
               collection_name = COLLECTION_NAME
       files = await Media.count_documents()
       size = get_size(sizes)
-      free = 536870912 - size
+      free = 536870912 - int(sizes)
       free = get_size(free)
       total_users = await col.count_documents({})
       totl_chats = await grp.count_documents({})
