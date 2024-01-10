@@ -93,9 +93,11 @@ async def start(client, message):
       try:
         mongo = AsyncIOMotorClient(dburl)
         db = mongo[dbname]
-        col = db["users"]#db.users
-        grp = db["groups"]#db.groups
-        sizes = await db.command("dbstats")['dataSize']
+        col = db.users
+        grp = db.groups
+        result = await db.command("dbstats")
+        sizes = result['dataSize']
+        #sizes = await db.command("dbstats")['dataSize']
       except Exception as e:
            await rju.edit(f"Error **{e}**")
       instance = Instance.from_db(db)
