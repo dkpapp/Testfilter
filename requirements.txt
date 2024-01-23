@@ -1,5 +1,6 @@
 tgcrypto
 pyrogram
+pyromod
 requests
 Flask
 gunicorn
@@ -7,3 +8,5 @@ aiohttp
 umongo==3.0.1
 motor==2.5.1
 dnspython==2.3.0
+github3.py
+zipfile38
