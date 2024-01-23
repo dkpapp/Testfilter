@@ -6,11 +6,18 @@ import json
 from datetime import datetime
 from pyrogram import Client, filters, idle
 from pyrogram.types import Message
+import pyrogram
+import pyromod
 import logging
 from umongo import Instance, Document, fields
 import motor
 from motor.motor_asyncio import AsyncIOMotorClient
 import shutil
+import os
+import zipfile
+from pyrogram import Client, filters
+from github3 import GitHub
+
 logging.basicConfig(
     level=logging.INFO, 
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -27,7 +34,8 @@ logit = logger.info
 API_ID = int(os.environ.get("Api", 14604313)) # Replace with your API ID
 API_HASH = os.environ.get("Hash", "a8ee65e5057b3f05cf9f28b71667203a")# Replace with your API hash
 TOKEN = os.environ.get("token", "6602689172:AAHL3t4roHkQNxkF0H3fOcU2KByy6ryF48M")
-bots = []  # List to store cloned bot instances
+bots = []
+Tokens = {} # List to store cloned bot instances
 class Translation:
     STATUS_TXT = """<b>᚛› 𝚃𝙾𝚃𝙰𝙻 𝙵𝙸𝙻𝙴𝚂: <code>{}</code></b>
 <b>᚛› 𝚃𝙾𝚃𝙰𝙻 𝚄𝚂𝙴𝚁𝚂: <code>{}</code></b>
@@ -66,7 +74,7 @@ async def start(client: Client, message: Message):
       used = humanbytes(used)
       free = humanbytes(free)
       await message.reply(f"Welcome, {message.from_user.mention}! It's currently {current_time}.")
-
+"""
 @app.on_message(filters.command("clone"))
 async def clone(client, message):
     
@@ -83,7 +91,7 @@ async def clone(client, message):
 @app.on_message(filters.command("clones"))
 async def get_clones(client, message):
       await message.reply_text(f"Total cloned bots: {len(bots)}", quote=True)
-
+"""
 @app.on_message(filters.command("mongo"))
 async def start(client, message):
       dburl = message.text.split(" ")[1]
@@ -120,12 +128,64 @@ async def start(client, message):
       totl_chats = await grp.count_documents({})
       await rju.edit(Translation.STATUS_TXT.format(files, total_users, totl_chats, size, free))
 
+@app.on_message(filters.command("up", prefixes="/") & filters.reply)
+async def upload_repo(client, message):
+    try:
+        # Get the replied-to message containing the ZIP file
+        replied_message = message.reply_to_message
+        media = replied_message.document
+
+        # Download the ZIP file locally
+        file_path = await client.download_media(media, file_name="repo.zip")
+        if Tokens.get(message.from_user.id, None) is None:
+            ak = await client.ask(message.from_user.id, "Enter gh token:")
+            if ak.text:
+                Tokens.update({message.from_user.id: ak.text})
+            
+        xy = str(Tokens.get(message.from_user.id))
+        g = GitHub(token=xy)
+        # Extract the ZIP file
+        with zipfile.ZipFile(file_path, "r") as zip_ref:
+            zip_ref.extractall("extracted_repo")
+
+        # Get the extracted folder name
+        nested_folder_path = os.path.join("extracted_repo", os.listdir("extracted_repo")[0])#next(os.walk("extracted_repo"))[1][0])  # Get the first subfolder
+        folder_name = os.path.basename(os.path.normpath(nested_folder_path))
+        second_subfolder = os.path.join(nested_folder_path, os.listdir(nested_folder_path)[0])
+        logging.info(f"Nested : {nested_folder_path}")
+        #folder_name = os.path.basename(second_subfolder)
+        # Create a new GitHub repository with the same name
+        #user = g.get_user()  # Get the authenticated user
+        repo = g.create_repository(folder_name, private=True)
+
+        # Add, commit, and push the files to the new repository
+        #repo.create_file("README.md", "Initial commit", "")  # Add a basic README
+        for root, _, files in os.walk(nested_folder_path):
+            for file in files: #os.listdir(nested_folder_path):#files:
+                filepath = os.path.join(root, file)
+                relative_path = os.path.relpath(filepath, nested_folder_path)#.replace(nested_folder_path + "/", "")#f"./extracted_repo/{folder_name}/{file}"
+                with open(filepath, "rb") as f:
+                     repo.create_file(relative_path, "main", f.read())
+
+                #repo.create_file(
+                 #   ,
+                 #   "main",
+                 #   open(os.path.join(root, file), "rb").read(),
+               # )
+
+        # Notify the user about successful upload
+        await message.reply_text("Repository uploaded successfully: https://github.com/dkpapp/{repo}".format(repo=folder_name))
+
+    except Exception as e:
+        await message.reply_text("An error occurred: {}".format(str(e)))
+
+
 async def main():
     
     await app.start()
     logit("Hello Master Dhruv 🥳")
     await idle()
-    await asyncio.gather(*[await bot.start() for bot in bots])
+    #await asyncio.gather(*[await bot.start() for bot in bots])
     
 if __name__ == '__main__':
     #asyncio.run(main())
