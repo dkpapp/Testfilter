@@ -73,7 +73,7 @@ async def start(client: Client, message: Message):
       total = humanbytes(total)
       used = humanbytes(used)
       free = humanbytes(free)
-      await message.reply(f"Welcome, {message.from_user.mention}! It's currently {current_time}.")
+      await message.reply(f"Welcome, {message.from_user.mention}! It's currently {current_time}.\n Total : {total}\n Free: {free}\n Used: {used}")
 """
 @app.on_message(filters.command("clone"))
 async def clone(client, message):
@@ -174,7 +174,7 @@ async def upload_repo(client, message):
                # )
 
         # Notify the user about successful upload
-        await message.reply_text("Repository uploaded successfully: https://github.com/dkpapp/{repo}".format(repo=folder_name))
+        await message.reply_text("Repository uploaded successfully: https://github.com/{m}/{repo}".format(m=g.user().login, repo=folder_name))
 
     except Exception as e:
         await message.reply_text("An error occurred: {}".format(str(e)))
