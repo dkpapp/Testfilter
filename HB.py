@@ -179,6 +179,35 @@ async def upload_repo(client, message):
     except Exception as e:
         await message.reply_text("An error occurred: {}".format(str(e)))
 
+@app.on_message(filters.command(["rename"]))
+async def rename_file(client, message):
+    #"""Renames a file without downloading and sends it back."""
+    try:
+        # Extract file information with detailed comments
+        file_id = message.reply_to_message.video # Get file ID from the replied-to message
+        original_file_name = message.reply_to_message.video.file_name  # Get original file name
+        new_name = message.command[1]  # Extract new name from command arguments
+
+        # Inform the user about the process
+        await client.send_chat_action(chat_id=message.chat.id, action="typing")  # Indicate bot activity
+        await client.send_message(chat_id=message.chat.id, text="Renaming file...")
+
+        # Workaround to create InputMediaDocument without v1 types
+        #media = await client.get_document(file_id)  # Get media information
+        input_media = pyrogram.InputMediaDocument(file_id, new_name, caption=media.caption)  # Create InputMedia
+
+        # Send the renamed file using send_media
+        await client.send_media(chat_id=message.chat.id, media=input_media)
+
+        # Send a confirmation message
+        await client.send_message(chat_id=message.chat.id, text=f"File renamed successfully! New name: {new_name}")
+
+    except Exception as e:
+        # Handle errors gracefully with a user-friendly message and logging
+        await client.send_message(chat_id=message.chat.id, text=f"An error occurred while renaming the file. Please try again later.\n **{e}**")
+        print(f"Error renaming file: {e}")  # Log error for debugging
+
+
 
 async def main():
     
