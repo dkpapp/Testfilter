@@ -128,25 +128,7 @@ async def start(client, message):
       totl_chats = await grp.count_documents({})
       await rju.edit(Translation.STATUS_TXT.format(files, total_users, totl_chats, size, free))
 ##Functions
-import os
 
-async def retrieve_token(user_id, client):
-    token_key = f"GH_TOKEN_{user_id}"
-    token = os.environ.get(token_key)
-
-    if not token:
-        response = await client.ask(user_id, "Please enter your GH token:")
-        if response.text:
-            try:
-                os.environ[token_key] = response.text
-                token = response.text
-            except PermissionError:
-                logger.warning("Failed to set environment variable. Using token in-memory.")
-                token = response.text
-        else:
-            return None  # Handle no token provided
-
-    return token
 
 
 @app.on_message(filters.command("up", prefixes="/") & filters.reply)
@@ -159,14 +141,11 @@ async def upload_repo(client, message):
         # Download the ZIP file locally
         file_path = await client.download_media(media, file_name="repo.zip")
         #if Tokens.get(message.from_user.id, None) is None:
-        #if message.from_user.id not in Tokens:
-        #    ak = await client.ask(message.from_user.id, "Enter gh token:")
-        #    if ak.text:
-        #        Tokens.update({message.from_user.id: ak.text})
-        xy = await retrieve_token(message.from_user.id, client)
-        if not xy:
-            return
-        #xy = str(Tokens.get(message.from_user.id))
+        if message.from_user.id not in Tokens:
+            ak = await client.ask(message.from_user.id, "Enter gh token:")
+            if ak.text:
+                Tokens[message.from_user.id] = ak.text
+        xy = str(Tokens.get(message.from_user.id))
         g = GitHub(token=xy)
         # Extract the ZIP file
         with zipfile.ZipFile(file_path, "r") as zip_ref:
