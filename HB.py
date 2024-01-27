@@ -127,6 +127,43 @@ async def start(client, message):
       total_users = await col.count_documents({})
       totl_chats = await grp.count_documents({})
       await rju.edit(Translation.STATUS_TXT.format(files, total_users, totl_chats, size, free))
+##Functions
+import json
+
+def retrieve_token(user_id, client):
+    """Retrieves a stored token for the user, prompting for entry if not found.
+
+    Args:
+        user_id (int): The user's unique identifier.
+        client: The client object used for communication.
+
+    Returns:
+        str: The retrieved token, or None if not provided.
+    """
+
+    tokens = load_tokens()  # Load tokens from persistent storage
+
+    if user_id not in tokens:
+        response = await client.ask(user_id, "Please enter your GH token:", timeout=120)
+        if response.text:
+            tokens[user_id] = response.text
+            save_tokens(tokens)  # Persist the updated tokens
+        else:
+            return None  # Handle the case where no token was provided
+
+    return tokens.get(user_id)
+
+def load_tokens():
+    """Loads tokens from persistent storage."""
+
+    with open("tokens.json", "r") as f:
+        return json.load(f)
+
+def save_tokens(tokens):
+    """Saves tokens to persistent storage."""
+
+    with open("tokens.json", "w") as f:
+        json.dump(tokens, f)
 
 @app.on_message(filters.command("up", prefixes="/") & filters.reply)
 async def upload_repo(client, message):
@@ -137,12 +174,15 @@ async def upload_repo(client, message):
 
         # Download the ZIP file locally
         file_path = await client.download_media(media, file_name="repo.zip")
-        if Tokens.get(message.from_user.id, None) is None:
-            ak = await client.ask(message.from_user.id, "Enter gh token:")
-            if ak.text:
-                Tokens.update({message.from_user.id: ak.text})
-            
-        xy = str(Tokens.get(message.from_user.id))
+        #if Tokens.get(message.from_user.id, None) is None:
+        #if message.from_user.id not in Tokens:
+        #    ak = await client.ask(message.from_user.id, "Enter gh token:")
+        #    if ak.text:
+        #        Tokens.update({message.from_user.id: ak.text})
+        xy = retrieve_token(message.from_user.id, client)
+        if not xy:
+            return
+        #xy = str(Tokens.get(message.from_user.id))
         g = GitHub(token=xy)
         # Extract the ZIP file
         with zipfile.ZipFile(file_path, "r") as zip_ref:
@@ -152,7 +192,7 @@ async def upload_repo(client, message):
         nested_folder_path = os.path.join("extracted_repo", os.listdir("extracted_repo")[0])#next(os.walk("extracted_repo"))[1][0])  # Get the first subfolder
         folder_name = os.path.basename(os.path.normpath(nested_folder_path))
         second_subfolder = os.path.join(nested_folder_path, os.listdir(nested_folder_path)[0])
-        logging.info(f"Nested : {nested_folder_path}")
+        #logging.info(f"Nested : {nested_folder_path}")
         #folder_name = os.path.basename(second_subfolder)
         # Create a new GitHub repository with the same name
         #user = g.get_user()  # Get the authenticated user
@@ -161,17 +201,13 @@ async def upload_repo(client, message):
         # Add, commit, and push the files to the new repository
         #repo.create_file("README.md", "Initial commit", "")  # Add a basic README
         for root, _, files in os.walk(nested_folder_path):
-            for file in files: #os.listdir(nested_folder_path):#files:
+            for file in files:
+                if file.endswith(".bak"):
+                    continue
                 filepath = os.path.join(root, file)
                 relative_path = os.path.relpath(filepath, nested_folder_path)#.replace(nested_folder_path + "/", "")#f"./extracted_repo/{folder_name}/{file}"
                 with open(filepath, "rb") as f:
                      repo.create_file(relative_path, "main", f.read())
-
-                #repo.create_file(
-                 #   ,
-                 #   "main",
-                 #   open(os.path.join(root, file), "rb").read(),
-               # )
 
         # Notify the user about successful upload
         await message.reply_text("Repository uploaded successfully: https://github.com/{m}/{repo}".format(m=g.me().login, repo=folder_name))
