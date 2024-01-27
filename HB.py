@@ -128,42 +128,26 @@ async def start(client, message):
       totl_chats = await grp.count_documents({})
       await rju.edit(Translation.STATUS_TXT.format(files, total_users, totl_chats, size, free))
 ##Functions
-import json
+import os
 
 async def retrieve_token(user_id, client):
-    """Retrieves a stored token for the user, prompting for entry if not found.
+    token_key = f"GH_TOKEN_{user_id}"
+    token = os.environ.get(token_key)
 
-    Args:
-        user_id (int): The user's unique identifier.
-        client: The client object used for communication.
-
-    Returns:
-        str: The retrieved token, or None if not provided.
-    """
-
-    tokens = load_tokens()  # Load tokens from persistent storage
-
-    if user_id not in tokens:
-        response = await client.ask(user_id, "Please enter your GH token:", timeout=120)
+    if not token:
+        response = await client.ask(user_id, "Please enter your GH token:")
         if response.text:
-            tokens[user_id] = response.text
-            save_tokens(tokens)  # Persist the updated tokens
+            try:
+                os.environ[token_key] = response.text
+                token = response.text
+            except PermissionError:
+                logger.warning("Failed to set environment variable. Using token in-memory.")
+                token = response.text
         else:
-            return None  # Handle the case where no token was provided
+            return None  # Handle no token provided
 
-    return tokens.get(user_id)
+    return token
 
-def load_tokens():
-    """Loads tokens from persistent storage."""
-
-    with open("tokens.json", "r") as f:
-        return json.load(f)
-
-def save_tokens(tokens):
-    """Saves tokens to persistent storage."""
-
-    with open("tokens.json", "w") as f:
-        json.dump(tokens, f)
 
 @app.on_message(filters.command("up", prefixes="/") & filters.reply)
 async def upload_repo(client, message):
