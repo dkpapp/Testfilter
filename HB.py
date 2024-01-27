@@ -130,7 +130,7 @@ async def start(client, message):
 ##Functions
 import json
 
-def retrieve_token(user_id, client):
+async def retrieve_token(user_id, client):
     """Retrieves a stored token for the user, prompting for entry if not found.
 
     Args:
@@ -179,7 +179,7 @@ async def upload_repo(client, message):
         #    ak = await client.ask(message.from_user.id, "Enter gh token:")
         #    if ak.text:
         #        Tokens.update({message.from_user.id: ak.text})
-        xy = retrieve_token(message.from_user.id, client)
+        xy = await retrieve_token(message.from_user.id, client)
         if not xy:
             return
         #xy = str(Tokens.get(message.from_user.id))
