@@ -1,4 +1,6 @@
 import asyncio
+import aiohttp
+import traceback
 import math
 import os
 import time
@@ -15,6 +17,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import shutil
 import os
 import zipfile
+
 from pyrogram import Client, filters
 from github3 import GitHub
 
@@ -206,12 +209,26 @@ async def rename_file(client, message):
         await client.send_message(chat_id=message.chat.id, text=f"An error occurred while renaming the file. Please try again later.\n **{e}**")
         print(f"Error renaming file: {e}")  # Log error for debugging
 
-
+async def ping_server():
+    sleep_time = 800
+    url = "https://testclone-4yq8.onrender.com"
+    while True:
+        await asyncio.sleep(sleep_time)
+        try:
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as session:
+                async with session.get(url) as resp:
+                    logging.info("Pinged server with response: {}".format(resp.status))
+        except TimeoutError:
+            logging.warning("Couldn't connect to the site URL..!")
+        except Exception:
+            traceback.print_exc()
 
 async def main():
-    
     await app.start()
     logit("Hello Master Dhruv 🥳")
+    asyncio.create_task(ping_server())
     await idle()
     #await asyncio.gather(*[await bot.start() for bot in bots])
     
