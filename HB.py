@@ -144,11 +144,12 @@ async def upload_repo(client, message):
         # Download the ZIP file locally
         file_path = await client.download_media(media, file_name="repo.zip")
         #if Tokens.get(message.from_user.id, None) is None:
-        if message.from_user.id not in Tokens:
-            ak = await client.ask(message.from_user.id, "Enter gh token:")
-            if ak.text:
-                Tokens[message.from_user.id] = ak.text
-        xy = str(Tokens.get(message.from_user.id))
+        #if
+        ak = await client.ask(message.from_user.id, "Enter gh token:")
+        if ak.text:
+                 xy = str(ak.text)
+                #Tokens[message.from_user.id] = ak.text
+        #xy = str(Tokens.get(message.from_user.id))
         g = GitHub(token=xy)
         # Extract the ZIP file
         with zipfile.ZipFile(file_path, "r") as zip_ref:
