@@ -211,8 +211,8 @@ async def rename_file(client, message):
         print(f"Error renaming file: {e}")  # Log error for debugging
 
 async def ping_server():
-    sleep_time = 570#40#300
-    url = "https://testclone-4yq8.onrender.com"
+    sleep_time = 40#300
+    url = "https://testclone-o3tl.onrender.com"
     while True:
         await asyncio.sleep(sleep_time)
         try:
