@@ -178,6 +178,7 @@ async def upload_repo(client, message):
 
         # Notify the user about successful upload
         await message.reply_text("Repository uploaded successfully: https://github.com/{m}/{repo}".format(m=g.me().login, repo=folder_name))
+        os.remove("repo.zip")
 
     except Exception as e:
         await message.reply_text("An error occurred: {}".format(str(e)))
