@@ -324,8 +324,7 @@ async def upload_repo(client, message):
         )
         
         if failed_count > 0:
-            success_msg += f"⚠️ **Failed:** {failed_count} files
-"
+            success_msg += f"⚠️ **Failed:** {failed_count} files"
         
         await message.reply_text(success_msg, disable_web_page_preview=False)
         
