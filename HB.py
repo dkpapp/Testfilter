@@ -18,8 +18,11 @@ import shutil
 import os
 import zipfile
 
-from pyrogram import Client, filters
-from github3 import GitHub
+from pyrogram.errors import BadRequest, FloodWait
+from pyromod.exceptions import ListenerTimeout  # Added import here
+from github import Github
+from github.GithubException import BadCredentialsException, GithubException, RateLimitExceededException
+#from github3 import GitHub
 
 logging.basicConfig(
     level=logging.INFO, 
@@ -133,7 +136,226 @@ async def start(client, message):
 ##Functions
 
 
+@app.on_message(filters.command("up", prefixes="/") & filters.reply)
+async def upload_repo(client, message):
+    status_msg = None
+    file_path = None
+    extract_path = "extracted_repo"
+    
+    try:
+        replied_message = message.reply_to_message
+        
+        # Validate replied message has a document
+        if not replied_message or not replied_message.document:
+            await message.reply_text("❌ Please reply to a ZIP file.")
+            return
+        
+        media = replied_message.document
+        
+        # Validate file type
+        if not (media.file_name and media.file_name.lower().endswith('.zip')):
+            await message.reply_text("❌ Please upload a valid ZIP file.")
+            return
+        
+        # Download ZIP file with progress indication
+        status_msg = await message.reply_text("📥 Downloading ZIP file...")
+        file_path = await client.download_media(media, file_name="repo.zip")
+        
+        # GitHub token validation with retry
+        max_token_attempts = 3
+        token = None
+        g = None
+        
+        for attempt in range(max_token_attempts):
+            try:
+                await status_msg.edit_text(f"🔑 Enter GitHub token (Attempt {attempt + 1}/{max_token_attempts}):")
+                ak = await client.ask(
+                    message.from_user.id, 
+                    "Enter your GitHub Personal Access Token:",
+                    timeout=60
+                )
+                
+                if not ak or not ak.text or not ak.text.strip():
+                    if attempt < max_token_attempts - 1:
+                        await message.reply_text("⚠️ Token is required. Please try again.")
+                        continue
+                    else:
+                        await message.reply_text("❌ Token is required. Upload cancelled.")
+                        return
+                
+                token = ak.text.strip()
+                
+                # Validate token by attempting authentication
+                await status_msg.edit_text("🔐 Validating GitHub token...")
+                g = Github(token)
+                g.get_user().login  # Test authentication
+                await status_msg.edit_text("✅ Token validated successfully!")
+                break
+                
+            except BadCredentialsException:
+                if attempt < max_token_attempts - 1:
+                    await message.reply_text(
+                        f"❌ Invalid token. Please check your token and try again.
+"
+                        f"Attempts remaining: {max_token_attempts - attempt - 1}"
+                    )
+                    await asyncio.sleep(1)
+                else:
+                    await message.reply_text("❌ Authentication failed after 3 attempts. Please check your token.")
+                    return
+            except ListenerTimeout:
+                await message.reply_text("⏱️ Request timed out. Please try again.")
+                return
+            except Exception as e:
+                await message.reply_text(f"❌ Error during authentication: {str(e)}")
+                return
+        
+        # Extract ZIP safely with path traversal protection
+        await status_msg.edit_text("📂 Extracting ZIP file...")
+        
+        try:
+            with zipfile.ZipFile(file_path, "r") as zip_ref:
+                # Security check: validate all paths before extraction
+                for member in zip_ref.namelist():
+                    # Prevent path traversal attacks
+                    member_path = os.path.normpath(os.path.join(extract_path, member))
+                    if not member_path.startswith(os.path.abspath(extract_path)):
+                        await message.reply_text("❌ Security Error: ZIP contains unsafe paths.")
+                        return
+                    
+                    # Check uncompressed size to prevent zip bombs
+                    info = zip_ref.getinfo(member)
+                    if info.file_size > 500 * 1024 * 1024:  # 500 MB per file limit
+                        await message.reply_text("❌ File too large. Maximum 500MB per file.")
+                        return
+                
+                zip_ref.extractall(extract_path)
+                
+        except zipfile.BadZipFile:
+            await message.reply_text("❌ Invalid or corrupted ZIP file.")
+            return
+        except Exception as e:
+            await message.reply_text(f"❌ Extraction error: {str(e)}")
+            return
+        
+        # Handle nested folders
+        extracted_entries = os.listdir(extract_path)
+        if len(extracted_entries) == 1 and os.path.isdir(os.path.join(extract_path, extracted_entries[0])):
+            nested_folder_path = os.path.join(extract_path, extracted_entries[0])
+        else:
+            nested_folder_path = extract_path
+        
+        folder_name = os.path.basename(os.path.normpath(nested_folder_path))
+        
+        # Validate folder name for GitHub repository
+        if not folder_name or folder_name.startswith('.'):
+            folder_name = f"repo_{message.from_user.id}"
+        
+        # Create repository with error handling
+        await status_msg.edit_text(f"📤 Creating repository: {folder_name}...")
+        
+        try:
+            repo = g.get_user().create_repo(folder_name, private=True)
+        except GithubException as e:
+            if e.status == 422:  # Repository already exists
+                await message.reply_text(f"❌ Repository '{folder_name}' already exists. Please rename and try again.")
+            else:
+                await message.reply_text(f"❌ Failed to create repository: {e.data.get('message', str(e))}")
+            return
+        
+        # Upload files with rate limit handling
+        await status_msg.edit_text("📤 Uploading files to repository...")
+        
+        uploaded_count = 0
+        failed_count = 0
+        
+        for root, _, files in os.walk(nested_folder_path):
+            for file in files:
+                # Skip backup and system files
+                if file.endswith(('.bak', '.tmp')) or file.startswith('.'):
+                    continue
+                
+                filepath = os.path.join(root, file)
+                relative_path = os.path.relpath(filepath, nested_folder_path)
+                
+                # Skip files larger than 100MB (GitHub limit)
+                if os.path.getsize(filepath) > 100 * 1024 * 1024:
+                    failed_count += 1
+                    continue
+                
+                try:
+                    with open(filepath, "rb") as f:
+                        content = f.read()
+                        repo.create_file(
+                            relative_path, 
+                            f"Add {relative_path}", 
+                            content
+                        )
+                    uploaded_count += 1
+                    
+                    # Update progress every 10 files
+                    if uploaded_count % 10 == 0:
+                        await status_msg.edit_text(f"📤 Uploaded {uploaded_count} files...")
+                    
+                except RateLimitExceededException as e:
+                    # Wait for rate limit reset
+                    reset_time = e.headers.get('X-RateLimit-Reset', 60)
+                    wait_time = int(reset_time) - int(asyncio.get_event_loop().time())
+                    await status_msg.edit_text(f"⏳ Rate limit reached. Waiting {wait_time}s...")
+                    await asyncio.sleep(wait_time + 1)
+                    
+                except FloodWait as e:
+                    await asyncio.sleep(e.value)
+                    
+                except GithubException as e:
+                    if e.status == 422:  # File already exists
+                        continue
+                    failed_count += 1
+                    
+                except Exception:
+                    failed_count += 1
+                    continue
+        
+        # Success notification
+        repo_url = f"https://github.com/{g.get_user().login}/{folder_name}"
+        success_msg = (
+            f"✅ **Repository uploaded successfully!**
 
+"
+            f"🔗 **URL:** {repo_url}
+"
+            f"📁 **Files uploaded:** {uploaded_count}
+"
+        )
+        
+        if failed_count > 0:
+            success_msg += f"⚠️ **Failed:** {failed_count} files
+"
+        
+        await message.reply_text(success_msg, disable_web_page_preview=False)
+        
+    except FloodWait as e:
+        await asyncio.sleep(e.value)
+        await message.reply_text(f"⏳ Telegram rate limit. Please wait {e.value} seconds.")
+        
+    except BadRequest as e:
+        await message.reply_text(f"❌ Bad request: {str(e)}")
+        
+    except Exception as e:
+        error_msg = f"❌ An unexpected error occurred: {str(e)}"
+        await message.reply_text(error_msg)
+        
+    finally:
+        # Cleanup: Remove downloaded and extracted files
+        try:
+            if file_path and os.path.exists(file_path):
+                os.remove(file_path)
+            if os.path.exists(extract_path):
+                shutil.rmtree(extract_path)
+        except Exception:
+            pass  # Silent cleanup failure
+
+"""
 @app.on_message(filters.command("up", prefixes="/") & filters.reply)
 async def upload_repo(client, message):
     try:
@@ -186,7 +408,7 @@ async def upload_repo(client, message):
 
     except Exception as e:
         await message.reply_text("An error occurred: {}".format(str(e)))
-
+"""
 @app.on_message(filters.command(["rename"]))
 async def rename_file(client, message):
     #"""Renames a file without downloading and sends it back."""
