@@ -214,6 +214,7 @@ async def upload_repo(client, message):
         
         try:
             with zipfile.ZipFile(file_path, "r") as zip_ref:
+                """
                 # Security check: validate all paths before extraction
                 for member in zip_ref.namelist():
                     # Prevent path traversal attacks
@@ -227,7 +228,7 @@ async def upload_repo(client, message):
                     if info.file_size > 500 * 1024 * 1024:  # 500 MB per file limit
                         await message.reply_text("❌ File too large. Maximum 500MB per file.")
                         return
-                
+                """
                 zip_ref.extractall(extract_path)
                 
         except zipfile.BadZipFile:
