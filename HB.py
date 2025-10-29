@@ -195,8 +195,7 @@ async def upload_repo(client, message):
             except BadCredentialsException:
                 if attempt < max_token_attempts - 1:
                     await message.reply_text(
-                        f"❌ Invalid token. Please check your token and try again.
-"
+                        f"❌ Invalid token. Please check your token and try again."
                         f"Attempts remaining: {max_token_attempts - attempt - 1}"
                     )
                     await asyncio.sleep(1)
