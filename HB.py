@@ -318,13 +318,9 @@ async def upload_repo(client, message):
         # Success notification
         repo_url = f"https://github.com/{g.get_user().login}/{folder_name}"
         success_msg = (
-            f"✅ **Repository uploaded successfully!**
-
-"
-            f"🔗 **URL:** {repo_url}
-"
-            f"📁 **Files uploaded:** {uploaded_count}
-"
+            f"✅ **Repository uploaded successfully!**"
+            f"🔗 **URL:** {repo_url}"
+            f"📁 **Files uploaded:** {uploaded_count}"
         )
         
         if failed_count > 0:
