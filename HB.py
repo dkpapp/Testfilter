@@ -434,7 +434,7 @@ async def rename_file(client, message):
 
 async def ping_server():
     sleep_time = 40#300
-    url = "https://testclone-o3tl.onrender.com"
+    url = "https://gitupmon.onrender.com"
     while True:
         await asyncio.sleep(sleep_time)
         try:
