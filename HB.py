@@ -39,7 +39,7 @@ logit = logger.info
 # Configuration
 API_ID = int(os.environ.get("Api", 14604313)) # Replace with your API ID
 API_HASH = os.environ.get("Hash", "a8ee65e5057b3f05cf9f28b71667203a")# Replace with your API hash
-TOKEN = os.environ.get("token", "6602689172:AAHL3t4roHkQNxkF0H3fOcU2KByy6ryF48M")
+TOKEN = os.environ.get("token", "7067158275:AAEjp5Rwro9Slzlc6ZDHJDTL6lic5L2mol8")
 bots = []
 Tokens = {} # List to store cloned bot instances
 class Translation:
