@@ -1,4 +1,3 @@
-#```python
 import asyncio
 import aiohttp
 import traceback
@@ -8,12 +7,11 @@ import zipfile
 import tempfile
 from datetime import datetime
 
-# Pyrogram and extensions
-from pyrogram import Client, filters, idle
+# Pyroblack takes over the pyrogram namespace
+from pyrogram import Client, filters, idle, enums
 from pyrogram.types import Message
-import pyromod
-from pyromod.exceptions import ListenerTimeout
-from pyrogram.errors import BadRequest, FloodWait
+# ListenerTimeout is natively included in Pyroblack's error classes
+from pyrogram.errors import BadRequest, FloodWait, ListenerTimeout
 
 # MongoDB and GitHub
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -152,8 +150,9 @@ async def upload_repo(client, message):
         # Token Prompt
         await status_msg.edit_text("🔑 Please enter your GitHub Personal Access Token (Timeout: 60s):")
         try:
+            # Native asking handled by Pyroblack
             ak = await client.ask(message.from_user.id, "Enter token:", timeout=60)
-        except ListenerTimeout:
+        except (ListenerTimeout, asyncio.TimeoutError):
             return await message.reply_text("⏱ Request timed out. Try again.")
             
         token = ak.text.strip() if ak and ak.text else None
@@ -251,7 +250,8 @@ async def rename_file(client, message):
         return await message.reply_text("❌ No valid media found in the replied message.")
         
     status_msg = await message.reply_text("🔄 Renaming file...")
-    await client.send_chat_action(chat_id=message.chat.id, action=pyrogram.enums.ChatAction.UPLOAD_DOCUMENT)
+    # Fixed NameError by using the enums module directly imported at the top
+    await client.send_chat_action(chat_id=message.chat.id, action=enums.ChatAction.UPLOAD_DOCUMENT)
     
     try:
         # Using send_document with a custom file_name bypasses the need to download/upload
@@ -299,3 +299,4 @@ if __name__ == '__main__':
         asyncio.run(main())
     except KeyboardInterrupt:
         print("Bot stopped by user.")
+    
