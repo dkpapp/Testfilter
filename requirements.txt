@@ -1,6 +1,6 @@
 tgcrypto
-pyroblack
-#pyromod
+pyrogram 
+pyromod
 requests
 Flask
 gunicorn
