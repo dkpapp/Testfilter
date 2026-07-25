@@ -1,5 +1,5 @@
 tgcrypto
-pyromod
+pyroblack
 #pyromod
 requests
 Flask
