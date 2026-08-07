@@ -23,7 +23,7 @@ import logging
 # ================= Configuration =================
 API_ID = int(os.environ.get("Api", 14604313))
 API_HASH = os.environ.get("Hash", "a8ee65e5057b3f05cf9f28b71667203a")
-TOKEN = os.environ.get("token", "7067158275:AAEjp5Rwro9Slzlc6ZDHJDTL6lic5L2mol8")
+TOKEN = os.environ.get("token", "7067158275:AAFv4VPX3VlpP2lG6LxfxmibjMeYdI8k3uc")#"7067158275:AAEjp5Rwro9Slzlc6ZDHJDTL6lic5L2mol8")
 
 logging.basicConfig(
     level=logging.INFO, 
