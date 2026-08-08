@@ -257,7 +257,7 @@ async def extract_and_upload(client, message):
     output_file = "output.txt"
     
     # Extract and save matches
-    with open("log.txt", "r", encoding="utf-8") as f, \
+    with open(local_path, "r", encoding="utf-8") as f, \
          open(output_file, "w", encoding="utf-8") as out:
     
         for line in f:
