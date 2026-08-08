@@ -264,7 +264,7 @@ async def extract_and_upload(client, message):
         for line in f:
             if "CARD_DECLINED" not in line:
                 match = re.match(
-                    r"(\d{16}\|\d{1,2}\|\d{2, 4}\|\d{3,4})",
+                    r"(\d{16}\|\d{1,2}\|\d{2,4}\|\d{3,4})",
                     line
                 )
     
