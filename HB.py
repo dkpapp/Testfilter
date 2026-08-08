@@ -235,6 +235,62 @@ async def upload_repo(client, message):
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
+@app.on_message(filters.command("ext") & filters.private)
+async def extract_and_upload(client, message):
+    # /ext must be used as a reply to a document
+    replied = message.reply_to_message
+
+    if not replied or not replied.document:
+        await message.reply_text("Reply to a document with /ext")
+        return
+
+    document = replied.document
+    filename = document.file_name or "file"
+
+    # Download the replied document
+    local_path = await client.download_media(
+        replied,
+        file_name=filename
+    )
+    
+    output_file = "output.txt"
+    
+    # Extract and save matches
+    with open("log.txt", "r", encoding="utf-8") as f, \
+         open(output_file, "w", encoding="utf-8") as out:
+    
+        for line in f:
+            if "CARD_DECLINED" not in line:
+                match = re.match(
+                    r"(\d{16}\|\d{1,2}\|\d{1,2}\|\d{3,4})",
+                    line
+                )
+    
+                if match:
+                    out.write(match.group(1) + "\n")
+    
+    print(f"Saved results to {output_file}")
+    
+# Delete the file when you're finished
+# os.remove(output_file)
+
+    try:
+        # Upload with the same filename
+        uploaded = await client.send_document(
+            chat_id=message.chat.id,
+            document=local_path,
+            file_name=filename
+        )
+
+        # Delete /ext command, replied message, and downloaded local file
+        await message.delete()
+        await replied.delete()
+
+    finally:
+        # Always remove the local downloaded file
+        if local_path and os.path.exists(local_path):
+            os.remove(local_path)
+            
 
 @app.on_message(filters.command("rename"))
 async def rename_file(client, message):
