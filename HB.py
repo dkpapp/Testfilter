@@ -262,7 +262,7 @@ async def extract_and_upload(client, message):
          open(output_file, "w", encoding="utf-8") as out:
     
         for line in f:
-            if "CARD_DECLINED" not in line:
+            if "CARD_DECLINED" not in line or "CHARGED" not in line:
                 match = re.match(
                     r"(\d{16}\|\d{1,2}\|\d{2,4}\|\d{3,4})",
                     line
