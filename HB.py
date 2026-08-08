@@ -1,3 +1,4 @@
+
 import asyncio
 import aiohttp
 import traceback
@@ -279,7 +280,7 @@ async def extract_and_upload(client, message):
         # Upload with the same filename
         uploaded = await client.send_document(
             chat_id=message.chat.id,
-            document=local_path,
+            document=output_file,#local_path,
             file_name=filename
         )
 
@@ -289,8 +290,10 @@ async def extract_and_upload(client, message):
 
     finally:
         # Always remove the local downloaded file
+        os.remove(output_file)
         if local_path and os.path.exists(local_path):
             os.remove(local_path)
+            
             
 
 @app.on_message(filters.command("rename"))
