@@ -1,4 +1,4 @@
-
+import uuid
 import asyncio
 import aiohttp
 import traceback
@@ -237,65 +237,164 @@ async def upload_repo(client, message):
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-@app.on_message(filters.command("ext") & filters.private)
-async def extract_and_upload(client, message):
-    # /ext must be used as a reply to a document
-    replied = message.reply_to_message
+# 1. PRE-COMPILE REGEX: Compiling outside the loop offloads the pattern matching to C 
+# rather than re-evaluating it on every single line.
+CC_PATTERN = re.compile(r"(\d{15,16}\|\d{1,2}\|\d{2,4}\|\d{3,4})")
 
-    if not replied or not replied.document:
-        await message.reply_text("Reply to a document with /ext")
+# Dictionaries to keep track of user states, file paths, and timeout tasks
+user_states = {}
+user_files = {}
+user_tasks = {}
+
+async def timeout_cleanup(client, user_id, chat_id):
+    """Waits 30 seconds. If not cancelled, resets state and deletes file."""
+    try:
+        await asyncio.sleep(30)
+        
+        # If the task finishes the sleep, the 30 seconds passed.
+        user_states.pop(user_id, None)
+        files = user_files.pop(user_id, {})
+        
+        # Cleanup the downloaded first file
+        file1_path = files.get('file1')
+        if file1_path and os.path.exists(file1_path):
+            os.remove(file1_path)
+            
+        await client.send_message(chat_id, "⏳ 30 seconds passed without receiving the second file. Process cancelled.")
+    except asyncio.CancelledError:
+        # Task was cancelled successfully. 
+        # The caller (ext_command or handle_documents) handles the file cleanup.
+        pass
+
+@app.on_message(filters.command("ext") & filters.private)
+async def ext_command(client, message):
+    if not message.reply_to_message or not message.reply_to_message.document:
+        await message.reply_text("Please reply to a document with the /ext command to start.")
         return
 
-    document = replied.document
-    filename = document.file_name or "file"
+    user_id = message.from_user.id
+    chat_id = message.chat.id
 
-    # Download the replied document
-    local_path = await client.download_media(
-        replied,
-        file_name=filename
-    )
+    # Clean up old sessions to prevent disk leaks
+    if user_id in user_tasks:
+        user_tasks[user_id].cancel()
+        user_tasks.pop(user_id, None)
+
+    # Manually delete the previous file if the user restarts the process mid-timer
+    if user_id in user_files:
+        old_file = user_files[user_id].get('file1')
+        if old_file and os.path.exists(old_file):
+            os.remove(old_file)
+        user_files.pop(user_id, None)
+
+    msg = await message.reply_text("Downloading the first file...")
     
-    output_file = "output.txt"
+    # Download the new document
+    file1_path = await message.reply_to_message.download()
     
-    # Extract and save matches
-    with open(local_path, "r", encoding="utf-8") as f, \
-         open(output_file, "w", encoding="utf-8") as out:
+    # Save the path and update the user's state
+    user_files[user_id] = {'file1': file1_path}
+    user_states[user_id] = "WAITING_FOR_FILE_2"
     
-        for line in f:
-            if all(x not in line for x in ["CARD_DECLINED", "CHARGED", "PAYMENTS_CREDIT_CARD_GENERIC"]):#or "CHARGED" not in line:
-                #if "CHARGED" in line:
-                    #continue
-                match = re.match(
-                    r"(\d{16}\|\d{1,2}\|\d{2,4}\|\d{3,4})",
-                    line
-                )
+    await msg.edit_text("✅ First file saved!\n\nPlease send the second file to subtract **within 30 seconds**.")
+
+    # Start the 30-second countdown task
+    user_tasks[user_id] = asyncio.create_task(timeout_cleanup(client, user_id, chat_id))
+
+
+@app.on_message(filters.document & filters.private)
+async def handle_documents(client, message):
+    user_id = message.from_user.id
     
-                if match:
-                    out.write(match.group(1) + "\n")
+    if user_states.get(user_id) != "WAITING_FOR_FILE_2":
+        return
+
+    # Cancel the timeout countdown
+    if user_id in user_tasks:
+        user_tasks[user_id].cancel()
+        user_tasks.pop(user_id, None)
+
+    # Reset state 
+    user_states.pop(user_id, None)
+
+    msg = await message.reply_text("Downloading second file...")
+    local_path = await message.download()
     
-    print(f"Saved results to {output_file}")
+    # Retrieve file 1 path and clear memory
+    file1_path = user_files.pop(user_id, {}).get('file1')
+
+    if not file1_path or not os.path.exists(file1_path):
+        await msg.edit_text("Error: First file is missing. Please start over.")
+        if os.path.exists(local_path):
+            os.remove(local_path)
+        return
+
+    await msg.edit_text("Files downloaded. Processing subtraction...")
+
+    lines2 = set()
     
-# Delete the file when you're finished
-# os.remove(output_file)
+    try:
+        with open(local_path, "r", encoding="utf-8", errors="ignore") as f:
+            # 2. C-LEVEL ITERATION
+            for line in f:
+                # 3. UNROLL GENERATORS
+                if "CHARGED" in line or "CARD_DECLINED" in line or "PAYMENTS_CREDIT_CARD_GENERIC" in line:
+                    match = CC_PATTERN.search(line)
+                    if match:
+                        lines2.add(match.group(1))
+    except Exception as e:
+        await msg.edit_text(f"Error reading the second file: {e}")
+        if os.path.exists(local_path): os.remove(local_path)
+        if os.path.exists(file1_path): os.remove(file1_path)
+        return
+
+    # Delete the second file immediately to save disk space
+    if os.path.exists(local_path):
+        os.remove(local_path)
+
+    os.makedirs("downloads", exist_ok=True)
+    
+    # Generate a strictly unique output filename using UUID
+    unique_id = uuid.uuid4().hex
+    result_path = f"downloads/result_{user_id}_{unique_id}.txt"
+    
+    lines1_count = 0
+    result_lines_count = 0
 
     try:
-        # Upload with the same filename
-        uploaded = await client.send_document(
-            chat_id=message.chat.id,
-            document=output_file,#local_path,
-            file_name=filename
-        )
+        # 4. STREAMING I/O: Process chunk by chunk instead of loading to RAM
+        with open(file1_path, 'r', encoding='utf-8', errors="ignore") as f1, \
+             open(result_path, 'w', encoding='utf-8') as out_file:
+            
+            for line in f1:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                    
+                lines1_count += 1
+                
+                # 5. O(1) SET LOOKUP
+                if stripped not in lines2:
+                    out_file.write(stripped + '\n')
+                    result_lines_count += 1
 
-        # Delete /ext command, replied message, and downloaded local file
-        await message.delete()
-        await replied.delete()
+        await message.reply_document(
+            document=result_path,
+            caption=f"**Done!**\nLines in File 1: {lines1_count}\nLines subtracted: {lines1_count - result_lines_count}\nRemaining lines: {result_lines_count}"
+        )
+        
+        await msg.delete()
+
+    except Exception as e:
+        await message.reply_text(f"An error occurred during processing: {e}")
 
     finally:
-        # Always remove the local downloaded file
-        os.remove(output_file)
-        if local_path and os.path.exists(local_path):
-            os.remove(local_path)
-            
+        # --- FINAL CLEANUP ---
+        # Guarantees no orphaned files are left on the disk
+        if file1_path and os.path.exists(file1_path):
+            os.remove(file1_path)
+        if 'result_path' in locals() and result_path and os.path.exists(result_path):
+            os.remove(result_path)
             
 
 @app.on_message(filters.command("rename"))
