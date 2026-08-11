@@ -1,6 +1,7 @@
-tgcrypto
-pyroblack
+#tgcrypto
+#pyroblack
 #pyromod
+wzgram[fast]
 requests
 Flask
 gunicorn
