@@ -1,7 +1,7 @@
-#tgcrypto
-#pyroblack
+tgcrypto
+pyroblack
 #pyromod
-wzgram==3.0.28
+#wzgram==3.0.28
 requests
 Flask
 gunicorn
