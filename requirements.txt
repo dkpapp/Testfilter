@@ -1,7 +1,7 @@
 #tgcrypto
 #pyroblack
 #pyromod
-wzgram[fast]
+wzgram==3.0.28
 requests
 Flask
 gunicorn
